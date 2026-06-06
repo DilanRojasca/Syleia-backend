@@ -10,13 +10,13 @@ import {
   IProductRepository,
   ProductFilters,
 } from '@/domain/product/repositories/product.repository';
-import { ProductDocument } from '../schemas/product.schema';
+import { ProductDocument, ProductDocumentType } from '../schemas/product.schema';
 
 @Injectable()
 export class MongoProductRepository implements IProductRepository {
   constructor(
     @InjectModel(ProductDocument.name)
-    private readonly model: Model<ProductDocument>,
+    private readonly model: Model<ProductDocumentType>,
   ) {}
 
   async findAll(filters: ProductFilters): Promise<Product[]> {
@@ -41,7 +41,9 @@ export class MongoProductRepository implements IProductRepository {
   }
 
   async save(product: Product): Promise<void> {
+    const id = product.getId().toString();
     const data = {
+      _id: id,
       slug: product.getSlug(),
       name: product.getName(),
       shortDescription: product.getShortDescription(),
@@ -59,10 +61,10 @@ export class MongoProductRepository implements IProductRepository {
     };
 
     await this.model
-      .findByIdAndUpdate(
-        product.getId().toString(),
+      .findOneAndUpdate(
+        { _id: id },
         { $set: data },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: 'after' },
       )
       .exec();
   }
@@ -71,9 +73,9 @@ export class MongoProductRepository implements IProductRepository {
     await this.model.findByIdAndDelete(id.toString()).exec();
   }
 
-  private toDomainEntity(doc: ProductDocument): Product {
+  private toDomainEntity(doc: ProductDocumentType): Product {
     return Product.reconstitute({
-      id: ProductId.createFromString((doc._id as { toString(): string }).toString()),
+      id: ProductId.createFromString(doc._id as string),
       slug: doc.slug,
       name: doc.name,
       shortDescription: doc.shortDescription,
